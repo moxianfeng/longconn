@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/moxianfeng/langconn/src/tools"
 )
@@ -80,6 +81,33 @@ func (pp *PeerPool) Get() (net.Conn, bool) {
 	return ret, true
 }
 
+func (pp *PeerPool) TestRoutine() {
+	for {
+		pp.m.Lock()
+		closed := []int{}
+		// 检测连接是否中断
+		for i, c := range pp.conns {
+			c.SetReadDeadline(time.Now().Add(time.Microsecond))
+			one := make([]byte, 1)
+			if _, err := c.Read(one); err == io.EOF {
+				log.Printf("Info: [%v->%v] detected closed LAN connection\n", c.RemoteAddr(), c.LocalAddr())
+				closed = append(closed, i)
+			} else {
+				c.SetReadDeadline(time.Time{})
+			}
+		}
+
+		// 从大向小删除
+		for i := len(closed) - 1; i >= 0; i-- {
+			pp.conns[i].Close()
+			pp.conns = append(pp.conns[:i], pp.conns[i+1:]...)
+		}
+
+		time.Sleep(time.Millisecond)
+		pp.m.Unlock()
+	}
+}
+
 func main() {
 	serverLn, err := net.Listen("tcp", serverPort)
 	if nil != err {
@@ -96,6 +124,7 @@ func main() {
 	peerPool := &PeerPool{}
 	go serverRoutine(serverLn, frontChan)
 	go peerRoutine(peerLn, peerPool)
+	go peerPool.TestRoutine()
 
 	for {
 		{ // let defer occur
