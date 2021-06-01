@@ -109,6 +109,8 @@ func (pp *PeerPool) TestRoutine() {
 }
 
 func main() {
+	ParseEnv()
+
 	serverLn, err := net.Listen("tcp", serverPort)
 	if nil != err {
 		log.Fatal(err)

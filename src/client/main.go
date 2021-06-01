@@ -47,11 +47,13 @@ func (c *Client) Do() {
 	if nil != err {
 		log.Printf("Error: %v\n", err)
 		c.conn.Close()
+		c.pool.Remove(c.id)
 		return
 	}
 	if n == 0 {
 		log.Println("Error: Read got 0, what happened")
 		c.conn.Close()
+		c.pool.Remove(c.id)
 		return
 	}
 
@@ -61,6 +63,7 @@ func (c *Client) Do() {
 	if nil != err {
 		log.Printf("Error: %v\n", err)
 		c.conn.Close()
+		c.pool.Remove(c.id)
 		return
 	}
 	c.peer = backend
@@ -71,6 +74,9 @@ func (c *Client) Do() {
 	n, err = c.peer.Write(buf)
 	if nil != err || n != 1 {
 		log.Printf("Error: write first byte to peer failed, %v, %d\n", err, n)
+		c.conn.Close()
+		c.peer.Close()
+		c.pool.Remove(c.id)
 		return
 	}
 	ch := make(chan int)
